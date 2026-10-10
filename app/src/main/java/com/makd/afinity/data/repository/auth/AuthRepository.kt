@@ -3,6 +3,7 @@ package com.makd.afinity.data.repository.auth
 import com.makd.afinity.data.models.auth.QuickConnectAuthorization
 import com.makd.afinity.data.models.auth.QuickConnectState
 import com.makd.afinity.data.models.user.User
+import java.util.UUID
 import kotlinx.coroutines.flow.StateFlow
 import org.jellyfin.sdk.model.api.AuthenticationResult
 
@@ -27,6 +28,8 @@ interface AuthRepository {
     suspend fun authenticateWithQuickConnect(serverUrl: String, secret: String): AuthResult
 
     suspend fun logout()
+
+    suspend fun revokeToken(serverId: String, userId: UUID): Result<Unit>
 
     suspend fun initiateQuickConnect(serverUrl: String): QuickConnectState?
 

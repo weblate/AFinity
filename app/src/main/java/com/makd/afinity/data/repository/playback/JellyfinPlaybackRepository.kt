@@ -722,25 +722,6 @@ constructor(
         }
     }
 
-    override suspend fun endSession(sessionId: String): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                val apiClient = sessionManager.getCurrentApiClient() ?: return@withContext false
-                val sessionApi = SessionApi(apiClient)
-                sessionApi.reportSessionEnded()
-                true
-            } catch (e: ApiClientException) {
-                Timber.e(e, "Failed to end session: $sessionId")
-                false
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Timber.e(e, "Unexpected error ending session: $sessionId")
-                false
-            }
-        }
-    }
-
     override suspend fun stopTranscoding(deviceId: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {

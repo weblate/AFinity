@@ -23,6 +23,7 @@ import com.makd.afinity.data.repository.DatabaseRepository
 import com.makd.afinity.data.repository.JellyfinRepository
 import com.makd.afinity.data.repository.JellyseerrRepository
 import com.makd.afinity.data.repository.SecurePreferencesRepository
+import com.makd.afinity.data.repository.auth.AuthRepository
 import com.makd.afinity.data.repository.server.ServerRepository
 import com.makd.afinity.util.Locality
 import com.makd.afinity.util.NetworkLocality
@@ -34,6 +35,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +44,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
@@ -157,6 +160,7 @@ constructor(
     private val jellyseerrDao: JellyseerrDao,
     private val audiobookshelfDao: AudiobookshelfDao,
     private val securePreferencesRepository: SecurePreferencesRepository,
+    private val authRepository: AuthRepository,
     private val serverRepository: ServerRepository,
     private val jellyseerrRepositoryProvider: Provider<JellyseerrRepository>,
     private val audiobookshelfRepositoryProvider: Provider<AudiobookshelfRepository>,
@@ -237,8 +241,20 @@ constructor(
                     return@launch
                 }
 
-                databaseRepository.deleteServer(serverId)
-                databaseRepository.clearServerData(serverId)
+                withContext(NonCancellable) {
+                    securePreferencesRepository
+                        .getAllServerUserTokens()
+                        .filter { it.serverId == serverId }
+                        .forEach { token ->
+                            authRepository.revokeToken(serverId, token.userId).onFailure {
+                                Timber.w(it, "Failed to revoke token for ${token.userId}")
+                            }
+                        }
+
+                    databaseRepository.deleteServer(serverId)
+                    databaseRepository.clearServerData(serverId)
+                    securePreferencesRepository.clearAllServerTokens(serverId)
+                }
                 loadServers()
 
                 Timber.d("Server deleted successfully: $serverId")

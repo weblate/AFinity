@@ -3,6 +3,7 @@ package com.makd.afinity.data.manager
 import com.makd.afinity.data.database.dao.ServerDatabaseDao
 import com.makd.afinity.data.repository.SecurePreferencesRepository
 import com.makd.afinity.data.repository.audiobookshelf.AbsDownloadRepository
+import com.makd.afinity.data.repository.auth.AuthRepository
 import com.makd.afinity.data.repository.download.DownloadRepository
 import java.util.UUID
 import javax.inject.Inject
@@ -22,6 +23,7 @@ constructor(
     private val absDownloadRepository: AbsDownloadRepository,
     private val securePreferencesRepository: SecurePreferencesRepository,
     private val sessionManager: SessionManager,
+    private val authRepository: AuthRepository,
 ) {
 
     suspend operator fun invoke(serverId: String, userId: UUID): Result<Unit> =
@@ -45,6 +47,10 @@ constructor(
                     absDownloadRepository.deleteDownload(id).onFailure {
                         Timber.w(it, "Failed to delete Audiobookshelf download $id")
                     }
+                }
+
+                authRepository.revokeToken(serverId, userId).onFailure {
+                    Timber.w(it, "Failed to revoke token for $userId on server $serverId")
                 }
 
                 securePreferencesRepository.clearServerUserToken(serverId, userId)

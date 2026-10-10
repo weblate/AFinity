@@ -107,8 +107,6 @@ interface PlaybackRepository {
 
     suspend fun getTranscodingInfo(): TranscodingInfo?
 
-    suspend fun endSession(sessionId: String): Boolean
-
     suspend fun stopTranscoding(deviceId: String): Boolean
 
     suspend fun getTranscodingJob(deviceId: String): Any?

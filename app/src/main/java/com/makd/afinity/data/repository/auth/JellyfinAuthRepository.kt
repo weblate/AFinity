@@ -17,12 +17,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.Jellyfin
-import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.exception.ApiClientException
 import org.jellyfin.sdk.api.client.exception.InvalidStatusException
 import org.jellyfin.sdk.api.operations.AuthenticationApi
@@ -47,6 +50,8 @@ internal val SUPPORTED_REMOTE_COMMANDS =
         GeneralCommandType.SET_SUBTITLE_STREAM_INDEX,
         GeneralCommandType.DISPLAY_MESSAGE,
     )
+
+private const val TOKEN_REVOKE_TIMEOUT_MS = 5_000L
 
 @Singleton
 class JellyfinAuthRepository
@@ -74,6 +79,12 @@ constructor(
 
     init {
         Timber.d("AuthRepository initialized")
+        sessionManager.currentSession
+            .map { session -> session?.let { it.serverId to it.userId } }
+            .distinctUntilChanged()
+            .filterNotNull()
+            .onEach { registerClientCapabilities() }
+            .launchIn(scope)
     }
 
     override suspend fun restoreAuthenticationState(): AuthRepository.RestoreResult {
@@ -136,9 +147,6 @@ constructor(
                 }
 
                 Timber.d("Session restored for user: $username (url: $serverUrl)")
-                sessionManager.getCurrentApiClient()?.let { client ->
-                    scope.launch { registerClientCapabilities(client) }
-                }
                 return@withContext AuthRepository.RestoreResult.Success
             } catch (e: CancellationException) {
                 throw e
@@ -174,7 +182,7 @@ constructor(
                 val client =
                     jellyfin.createApi(
                         baseUrl = serverUrl,
-                        deviceInfo = deviceInfo.forUser(UUID.randomUUID()),
+                        deviceInfo = deviceInfo.forUser(username.lowercase()),
                     )
                 val authenticationApi = AuthenticationApi(client)
                 val authRequest =
@@ -185,7 +193,7 @@ constructor(
                 val response = authenticationApi.authenticateUserByName(authRequest)
 
                 val authResult = response.content
-                handleSuccessfulAuth(authResult, username, client)
+                handleSuccessfulAuth(authResult, username)
                 AuthRepository.AuthResult.Success(authResult)
             } catch (e: CancellationException) {
                 throw e
@@ -212,11 +220,7 @@ constructor(
     ): AuthRepository.AuthResult {
         return withContext(Dispatchers.IO) {
             try {
-                val client =
-                    jellyfin.createApi(
-                        baseUrl = serverUrl,
-                        deviceInfo = deviceInfo.forUser(UUID.randomUUID()),
-                    )
+                val client = jellyfin.createApi(baseUrl = serverUrl, deviceInfo = deviceInfo)
                 val authenticationApi = AuthenticationApi(client)
                 val quickConnectRequest =
                     org.jellyfin.sdk.model.api.QuickConnectDto(secret = secret)
@@ -224,7 +228,7 @@ constructor(
 
                 val authResult = response.content
                 val username = authResult.user?.name ?: "QuickConnect User"
-                handleSuccessfulAuth(authResult, username, client)
+                handleSuccessfulAuth(authResult, username)
                 AuthRepository.AuthResult.Success(authResult)
             } catch (e: CancellationException) {
                 throw e
@@ -238,11 +242,7 @@ constructor(
     override suspend fun initiateQuickConnect(serverUrl: String): QuickConnectState? {
         return withContext(Dispatchers.IO) {
             try {
-                val client =
-                    jellyfin.createApi(
-                        baseUrl = serverUrl,
-                        deviceInfo = deviceInfo.forUser(UUID.randomUUID()),
-                    )
+                val client = jellyfin.createApi(baseUrl = serverUrl, deviceInfo = deviceInfo)
                 val quickConnectApi = AuthenticationApi(client)
                 val result = quickConnectApi.initiateQuickConnect().content
                 QuickConnectState(
@@ -268,11 +268,7 @@ constructor(
     ): QuickConnectState? {
         return withContext(Dispatchers.IO) {
             try {
-                val client =
-                    jellyfin.createApi(
-                        baseUrl = serverUrl,
-                        deviceInfo = deviceInfo.forUser(UUID.randomUUID()),
-                    )
+                val client = jellyfin.createApi(baseUrl = serverUrl, deviceInfo = deviceInfo)
                 val quickConnectApi = AuthenticationApi(client)
                 val result = quickConnectApi.getQuickConnectState(secret = secret).content
                 QuickConnectState(
@@ -353,6 +349,36 @@ constructor(
         }
     }
 
+    override suspend fun revokeToken(serverId: String, userId: UUID): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            val current = sessionManager.currentSession.value
+            if (current?.serverId == serverId && current.userId == userId) {
+                return@withContext Result.failure(
+                    IllegalStateException("Cannot revoke the token of the active session")
+                )
+            }
+
+            try {
+                val completed =
+                    withTimeoutOrNull(TOKEN_REVOKE_TIMEOUT_MS) {
+                        sessionManager.getDetachedApiClient(serverId, userId)?.let { client ->
+                            SessionApi(client).reportSessionEnded()
+                        }
+                        Unit
+                    }
+                if (completed == null) {
+                    Result.failure(IllegalStateException("Timed out revoking token"))
+                } else {
+                    Result.success(Unit)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
     override suspend fun getCurrentUser(): User? {
         return withContext(Dispatchers.IO) {
             try {
@@ -383,11 +409,7 @@ constructor(
     override suspend fun getPublicUsers(serverUrl: String): List<User> {
         return withContext(Dispatchers.IO) {
             try {
-                val client =
-                    jellyfin.createApi(
-                        baseUrl = serverUrl,
-                        deviceInfo = deviceInfo.forUser(UUID.randomUUID()),
-                    )
+                val client = jellyfin.createApi(baseUrl = serverUrl, deviceInfo = deviceInfo)
                 val userApi = UserApi(client)
                 userApi.getPublicUsers().content.map { userDto ->
                     User(
@@ -411,14 +433,8 @@ constructor(
         }
     }
 
-    private suspend fun handleSuccessfulAuth(
-        authResult: AuthenticationResult,
-        username: String,
-        client: ApiClient,
-    ) {
+    private suspend fun handleSuccessfulAuth(authResult: AuthenticationResult, username: String) {
         authResult.accessToken?.let { token ->
-            client.update(accessToken = token)
-
             authResult.user?.let { userDto ->
                 val user =
                     User(
@@ -441,11 +457,11 @@ constructor(
             }
 
             Timber.d("Successfully authenticated user: $username")
-            scope.launch { registerClientCapabilities(client) }
         } ?: run { Timber.w("Authentication succeeded but no access token received") }
     }
 
-    private suspend fun registerClientCapabilities(client: ApiClient) {
+    private suspend fun registerClientCapabilities() {
+        val client = sessionManager.getCurrentApiClient() ?: return
         try {
             val sessionApi = SessionApi(client)
             val capabilities =
