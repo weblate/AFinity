@@ -61,20 +61,15 @@ fun PlaybackSpeedDialog(
     ) {
         Box(
             modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures(onTap = { onDismiss() })
-                    },
+                Modifier.fillMaxSize().padding(16.dp).pointerInput(Unit) {
+                    detectTapGestures(onTap = { onDismiss() })
+                },
             contentAlignment = Alignment.BottomCenter,
         ) {
             PlaybackSpeedPanel(
                 currentSpeed = currentSpeed,
                 onSpeedChange = onSpeedChange,
-                modifier = Modifier
-                    .fillMaxWidth(cardWidthFraction)
-                    .playerOverlayInsets(),
+                modifier = Modifier.fillMaxWidth(cardWidthFraction).playerOverlayInsets(),
             )
         }
     }
@@ -98,9 +93,7 @@ fun PlaybackSpeedPanel(
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -123,8 +116,7 @@ fun PlaybackSpeedPanel(
                         onSpeedChange(sliderSpeed)
                     },
                     modifier =
-                        Modifier
-                            .size(48.dp)
+                        Modifier.size(48.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
@@ -141,9 +133,7 @@ fun PlaybackSpeedPanel(
                     onValueChangeFinished = { onSpeedChange(sliderSpeed) },
                     valueRange = 0.25f..2.0f,
                     steps = 6,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                 )
 
                 IconButton(
@@ -152,8 +142,7 @@ fun PlaybackSpeedPanel(
                         onSpeedChange(sliderSpeed)
                     },
                     modifier =
-                        Modifier
-                            .size(48.dp)
+                        Modifier.size(48.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {

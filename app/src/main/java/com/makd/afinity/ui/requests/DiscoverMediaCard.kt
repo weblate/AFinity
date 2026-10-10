@@ -48,9 +48,7 @@ fun DiscoverMediaCard(
     Column(modifier = modifier.width(cardWidth)) {
         Card(
             onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(CardDimensions.ASPECT_RATIO_PORTRAIT),
+            modifier = Modifier.fillMaxWidth().aspectRatio(CardDimensions.ASPECT_RATIO_PORTRAIT),
             colors =
                 CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -70,9 +68,7 @@ fun DiscoverMediaCard(
                     item.getDisplayStatus()?.let { status ->
                         StatusChip(
                             attributes = mediaStatusAttributes(status),
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp),
+                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
                         )
                     }
                 }
@@ -99,8 +95,8 @@ fun DiscoverMediaCard(
                         MaterialTheme.typography.bodySmall.copy(
                             fontSize =
                                 MaterialTheme.typography.bodySmall.fontSize *
-                                        if (fontScale > 1.3f) 0.8f
-                                        else if (fontScale > 1.15f) 0.9f else 1f
+                                    if (fontScale > 1.3f) 0.8f
+                                    else if (fontScale > 1.15f) 0.9f else 1f
                         ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -129,8 +125,8 @@ fun DiscoverMediaCard(
                             MaterialTheme.typography.bodySmall.copy(
                                 fontSize =
                                     MaterialTheme.typography.bodySmall.fontSize *
-                                            if (fontScale > 1.3f) 0.8f
-                                            else if (fontScale > 1.15f) 0.9f else 1f
+                                        if (fontScale > 1.3f) 0.8f
+                                        else if (fontScale > 1.15f) 0.9f else 1f
                             ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

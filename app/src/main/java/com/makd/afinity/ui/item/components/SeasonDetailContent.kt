@@ -146,9 +146,7 @@ private fun LazyListScope.episodesItems(
     if (lazyEpisodeItems.loadState.append is LoadState.Loading) {
         detailItem("episodes_loading", horizontalPadding, gap = EpisodesInnerGap) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(32.dp))

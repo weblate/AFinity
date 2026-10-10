@@ -85,8 +85,7 @@ fun LiveTvGuideTab(
     Column(modifier = modifier.fillMaxSize()) {
         Row(
             modifier =
-                Modifier
-                    .fillMaxWidth()
+                Modifier.fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -137,21 +136,17 @@ fun LiveTvGuideTab(
             stickyHeader {
                 Row(
                     modifier =
-                        Modifier
-                            .fillMaxWidth()
+                        Modifier.fillMaxWidth()
                             .height(headerHeight)
                             .background(MaterialTheme.colorScheme.surface)
                 ) {
                     Box(
                         modifier =
-                            Modifier
-                                .width(channelCellWidth)
+                            Modifier.width(channelCellWidth)
                                 .height(headerHeight)
                                 .background(MaterialTheme.colorScheme.surface)
                     )
-                    Box(modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(horizontalScrollState)) {
+                    Box(modifier = Modifier.weight(1f).horizontalScroll(horizontalScrollState)) {
                         EpgTimeHeader(
                             startTime = uiState.epgStartTime,
                             visibleHours = uiState.epgVisibleHours,
@@ -162,9 +157,7 @@ fun LiveTvGuideTab(
             }
 
             items(items = uiState.epgChannels, key = { it.id }) { channel ->
-                Row(modifier = Modifier
-                    .fillMaxWidth()
-                    .height(rowHeight)) {
+                Row(modifier = Modifier.fillMaxWidth().height(rowHeight)) {
                     EpgChannelCell(
                         channel = channel,
                         onClick = { onChannelClick(channel) },
@@ -173,9 +166,7 @@ fun LiveTvGuideTab(
                     )
 
                     val channelPrograms = uiState.epgPrograms[channel.id] ?: emptyList()
-                    Box(modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(horizontalScrollState)) {
+                    Box(modifier = Modifier.weight(1f).horizontalScroll(horizontalScrollState)) {
                         EpgProgramRow(
                             programs = channelPrograms,
                             epgStartTime = uiState.epgStartTime,

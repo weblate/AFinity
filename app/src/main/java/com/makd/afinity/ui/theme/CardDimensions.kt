@@ -486,21 +486,21 @@ object CardDimensions {
         @ReadOnlyComposable
         get() =
             InfoTilePadding * 2 +
-                    textHeight(MaterialTheme.typography.labelSmall) +
-                    RatingTileLineGap +
-                    textHeight(MaterialTheme.typography.headlineMedium)
+                textHeight(MaterialTheme.typography.labelSmall) +
+                RatingTileLineGap +
+                textHeight(MaterialTheme.typography.headlineMedium)
 
     val reviewCardHeight: Dp
         @Composable
         @ReadOnlyComposable
         get() =
             InfoTilePadding * 2 +
-                    textHeight(MaterialTheme.typography.titleMedium) +
-                    ReviewCardHeaderGap +
-                    textHeight(MaterialTheme.typography.bodyMedium, REVIEW_CARD_BODY_LINES) +
-                    ReviewCardFooterGap +
-                    textHeight(MaterialTheme.typography.labelLarge) +
-                    ReviewCardSlack
+                textHeight(MaterialTheme.typography.titleMedium) +
+                ReviewCardHeaderGap +
+                textHeight(MaterialTheme.typography.bodyMedium, REVIEW_CARD_BODY_LINES) +
+                ReviewCardFooterGap +
+                textHeight(MaterialTheme.typography.labelLarge) +
+                ReviewCardSlack
 
     @Composable
     @ReadOnlyComposable
@@ -515,8 +515,8 @@ object CardDimensions {
         @ReadOnlyComposable
         get() =
             EpgRowChrome +
-                    textHeight(MaterialTheme.typography.bodySmall) +
-                    textHeight(MaterialTheme.typography.labelSmall)
+                textHeight(MaterialTheme.typography.bodySmall) +
+                textHeight(MaterialTheme.typography.labelSmall)
 
     @Composable
     @ReadOnlyComposable

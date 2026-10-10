@@ -276,9 +276,7 @@ fun UpcomingEpisodeCard(
     Column(modifier = modifier.width(cardWidth)) {
         Card(
             onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(CardDimensions.ASPECT_RATIO_LANDSCAPE),
+            modifier = Modifier.fillMaxWidth().aspectRatio(CardDimensions.ASPECT_RATIO_LANDSCAPE),
             colors =
                 CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
