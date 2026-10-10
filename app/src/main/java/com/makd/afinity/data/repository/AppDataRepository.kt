@@ -164,6 +164,11 @@ constructor(
     val separateTvLibrarySections: StateFlow<List<Pair<AfinityCollection, List<AfinityShow>>>> =
         _separateTvLibrarySections.asStateFlow()
 
+    private val _separateMixedLibrarySections =
+        MutableStateFlow<List<Pair<AfinityCollection, List<AfinityItem>>>>(emptyList())
+    val separateMixedLibrarySections: StateFlow<List<Pair<AfinityCollection, List<AfinityItem>>>> =
+        _separateMixedLibrarySections.asStateFlow()
+
     val userProfileImageUrl: StateFlow<String?> =
         sessionManager.currentSession
             .map { session ->
@@ -284,6 +289,9 @@ constructor(
                 }
                 _separateTvLibrarySections.update { list ->
                     list.map { (col, shows) -> col to shows.filterNot { matches(it.id) } }
+                }
+                _separateMixedLibrarySections.update { list ->
+                    list.map { (col, items) -> col to items.filterNot { matches(it.id) } }
                 }
 
                 if (notifyLibraryChange) {
@@ -830,6 +838,34 @@ constructor(
         return rankedSeriesIds.mapNotNull { directShows[it] ?: fetchedShows[it] }
     }
 
+    private suspend fun loadLatestMixed(libraryId: UUID, byDateAdded: Boolean): List<AfinityItem> {
+        val items =
+            if (byDateAdded) {
+                mediaRepository.getLatestMedia(
+                    parentId = libraryId,
+                    limit = 30,
+                    groupItems = true,
+                    includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+                )
+            } else {
+                val baseUrl = mediaRepository.getBaseUrl()
+                mediaRepository
+                    .getItems(
+                        parentId = libraryId,
+                        sortBy = SortBy.RELEASE_DATE,
+                        sortDescending = true,
+                        limit = 30,
+                        includeItemTypes = listOf("MOVIE", "SERIES"),
+                        fields = FieldSets.MEDIA_ITEM_CARDS,
+                        recursive = true,
+                        criteria = ItemFilterCriteria(isPlayed = false),
+                    )
+                    .items
+                    .mapNotNull { it.toAfinityItem(baseUrl) }
+            }
+        return items.filter { it is AfinityMovie || it is AfinityShow }.distinctBy { it.id }
+    }
+
     private fun <T> mergeByRank(lists: List<List<T>>): List<T> {
         if (lists.size <= 1) return lists.firstOrNull().orEmpty()
         val merged = mutableListOf<T>()
@@ -894,6 +930,9 @@ constructor(
             val tvLibraries =
                 if (HomeRow.LATEST_TV in hiddenRows) emptyList()
                 else latestLibraries.filter { it.type == CollectionType.TvShows }
+            val mixedLibraries =
+                if (hiddenRows.containsAll(LATEST_ROWS)) emptyList()
+                else latestLibraries.filter { it.type == CollectionType.Mixed }
 
             val useJellyfinDefault = preferencesRepository.getHomeSortByDateAdded()
             val combinedTvLatest =
@@ -901,8 +940,23 @@ constructor(
                     tvLibraries.isNotEmpty() &&
                     preferencesRepository.getCombineLibrarySections()
 
-            val (movieResults, showResults, combinedShows) =
+            val (latestResults, mixedResults) =
                 coroutineScope {
+                    val mixedDeferred = async {
+                        mixedLibraries
+                            .map { library ->
+                                async {
+                                    try {
+                                        library to loadLatestMixed(library.id, useJellyfinDefault)
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        library to emptyList()
+                                    }
+                                }
+                            }
+                            .awaitAll()
+                    }
                     val combinedShowsDeferred = async {
                         if (combinedTvLatest) getLatestShowsCombined(limit = COMBINED_LATEST_FETCH)
                         else emptyList()
@@ -986,8 +1040,16 @@ constructor(
                         moviesDeferred.await(),
                         showsDeferred.await(),
                         combinedShowsDeferred.await(),
-                    )
+                    ) to mixedDeferred.await()
                 }
+            val (movieResults, showResults, combinedShows) = latestResults
+
+            _separateMixedLibrarySections.value =
+                mixedResults
+                    .filter { it.second.isNotEmpty() }
+                    .map { (library, items) ->
+                        library to mergeStoreUserData(items.take(LATEST_RETAINED))
+                    }
 
             _separateMovieLibrarySections.value =
                 movieResults
@@ -1003,8 +1065,11 @@ constructor(
                         library to mergeStoreUserData(shows.take(LATEST_RETAINED))
                     }
 
-            val allLatestMovies = movieResults.flatMap { it.second }
-            val allLatestSeries = showResults.flatMap { it.second }
+            val mixedItems = mixedResults.flatMap { it.second }
+            val mixedShows = mixedItems.filterIsInstance<AfinityShow>()
+            val allLatestMovies =
+                movieResults.flatMap { it.second } + mixedItems.filterIsInstance<AfinityMovie>()
+            val allLatestSeries = showResults.flatMap { it.second } + mixedShows
 
             val latestMovies =
                 if (useJellyfinDefault) {
@@ -1017,7 +1082,8 @@ constructor(
                 if (combinedTvLatest) {
                     combinedShows.take(LATEST_RETAINED)
                 } else if (useJellyfinDefault) {
-                    mergeByRank(showResults.map { it.second }).take(LATEST_RETAINED)
+                    mergeByRank(showResults.map { it.second } + listOf(mixedShows))
+                        .take(LATEST_RETAINED)
                 } else {
                     allLatestSeries.sortedByDescending { it.premiereDate }.take(LATEST_RETAINED)
                 }
@@ -1127,6 +1193,15 @@ constructor(
                 }
             }
             else -> Unit
+        }
+        if (updatedItem is AfinityMovie || updatedItem is AfinityShow) {
+            _separateMixedLibrarySections.update { sections ->
+                if (sections.none { (_, items) -> items.any { it.id == updatedItem.id } }) {
+                    sections
+                } else {
+                    sections.map { (lib, items) -> lib to items.replacedWith(updatedItem) }
+                }
+            }
         }
         _favoritesData.update { data ->
             when (updatedItem) {
@@ -1320,6 +1395,11 @@ constructor(
             }
         _separateTvLibrarySections.value
             .firstNotNullOfOrNull { (_, shows) -> shows.firstOrNull { it.id == id } }
+            ?.let {
+                return it
+            }
+        _separateMixedLibrarySections.value
+            .firstNotNullOfOrNull { (_, items) -> items.firstOrNull { it.id == id } }
             ?.let {
                 return it
             }
@@ -1573,6 +1653,7 @@ constructor(
         _loadingPhase.value = ""
         _separateMovieLibrarySections.value = emptyList()
         _separateTvLibrarySections.value = emptyList()
+        _separateMixedLibrarySections.value = emptyList()
         _favoritesLoaded.value = false
         _favoritesLoadFailed.value = false
         _favoritesProbeCount.value = 0

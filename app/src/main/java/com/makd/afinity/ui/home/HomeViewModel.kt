@@ -249,6 +249,14 @@ constructor(
         }
 
         viewModelScope.launch {
+            appDataRepository.separateMixedLibrarySections.collect { sections ->
+                _uiState.update {
+                    it.copy(separateMixedLibrarySections = sectionsForDisplay(sections))
+                }
+            }
+        }
+
+        viewModelScope.launch {
             combine(homeSectionsRepository.layout, homeSectionsRepository.content) { layout, content
                     ->
                     layout.mapNotNull { descriptor ->
@@ -1069,6 +1077,8 @@ data class HomeUiState(
     val separateMovieLibrarySections: List<Pair<AfinityCollection, List<AfinityMovie>>> =
         emptyList(),
     val separateTvLibrarySections: List<Pair<AfinityCollection, List<AfinityShow>>> = emptyList(),
+    val separateMixedLibrarySections: List<Pair<AfinityCollection, List<AfinityItem>>> =
+        emptyList(),
     val isOffline: Boolean = false,
     val offlineReason: UnreachableReason? = null,
 )
@@ -1090,6 +1100,9 @@ fun HomeUiState.mergedWith(itemStore: ItemStore): HomeUiState {
     val showSections = separateTvLibrarySections.map { (lib, items) ->
         lib to itemStore.merge(items)
     }
+    val mixedSections = separateMixedLibrarySections.map { (lib, items) ->
+        lib to itemStore.merge(items)
+    }
 
     val unchanged =
         hero === heroCarouselItems &&
@@ -1107,6 +1120,9 @@ fun HomeUiState.mergedWith(itemStore: ItemStore): HomeUiState {
             } &&
             showSections.indices.all {
                 showSections[it].second === separateTvLibrarySections[it].second
+            } &&
+            mixedSections.indices.all {
+                mixedSections[it].second === separateMixedLibrarySections[it].second
             }
     if (unchanged) return this
 
@@ -1123,6 +1139,7 @@ fun HomeUiState.mergedWith(itemStore: ItemStore): HomeUiState {
         genreShows = genreS,
         separateMovieLibrarySections = movieSections,
         separateTvLibrarySections = showSections,
+        separateMixedLibrarySections = mixedSections,
     )
 }
 
@@ -1140,6 +1157,9 @@ fun HomeUiState.heldItemById(id: UUID): AfinityItem? =
         }
         ?: separateTvLibrarySections.firstNotNullOfOrNull { (_, shows) ->
             shows.firstOrNull { it.id == id }
+        }
+        ?: separateMixedLibrarySections.firstNotNullOfOrNull { (_, items) ->
+            items.firstOrNull { it.id == id }
         }
 
 private const val HOME_GENRE_POOL = 50

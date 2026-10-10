@@ -32,9 +32,11 @@ import com.makd.afinity.R
 import com.makd.afinity.data.models.extensions.primaryBlurHash
 import com.makd.afinity.data.models.extensions.primaryImageUrl
 import com.makd.afinity.data.models.media.AfinityBoxSet
+import com.makd.afinity.data.models.media.AfinityFolder
 import com.makd.afinity.data.models.media.AfinityItem
 import com.makd.afinity.data.models.media.AfinityMovie
 import com.makd.afinity.data.models.media.AfinityShow
+import com.makd.afinity.data.models.media.AfinityVideo
 import com.makd.afinity.data.models.media.AfinityVideoPlaylist
 import com.makd.afinity.navigation.LocalShowRatings
 import com.makd.afinity.ui.theme.CardDimensions
@@ -44,7 +46,7 @@ import java.util.Locale
 fun MediaItemGridCard(item: AfinityItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val ratingScale = rememberRatingMetadataScale()
     val aspectRatio =
-        if (item is AfinityVideoPlaylist) CardDimensions.ASPECT_RATIO_SQUARE
+        if (item is AfinityVideoPlaylist || item is AfinityVideo) CardDimensions.ASPECT_RATIO_SQUARE
         else CardDimensions.ASPECT_RATIO_PORTRAIT
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -64,6 +66,15 @@ fun MediaItemGridCard(item: AfinityItem, onClick: () -> Unit, modifier: Modifier
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                 )
+
+                if (item is AfinityFolder && item.images.primaryImageUrl == null) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_folder),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Center).size(48.dp),
+                    )
+                }
 
                 when {
                     item.played -> {
@@ -106,6 +117,16 @@ fun MediaItemGridCard(item: AfinityItem, onClick: () -> Unit, modifier: Modifier
                                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
                                 )
                             }
+                        }
+                    }
+
+                    item is AfinityFolder -> {
+                        val unplayedCount = item.unplayedItemCount
+                        if (unplayedCount != null && unplayedCount > 0) {
+                            MediaCountBadge(
+                                text = "$unplayedCount",
+                                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                            )
                         }
                     }
 

@@ -377,7 +377,8 @@ constructor(
                         _uiState.value.libraries.filter {
                             it.type == CollectionType.Movies ||
                                 it.type == CollectionType.TvShows ||
-                                it.type == CollectionType.BoxSets
+                                it.type == CollectionType.BoxSets ||
+                                it.type == CollectionType.Mixed
                         }
                     }
 
@@ -609,7 +610,11 @@ constructor(
         if (query.isEmpty()) return
 
         val selectedLibrary = _uiState.value.selectedLibrary
-        if (selectedLibrary != null && selectedLibrary.type != CollectionType.TvShows) {
+        if (
+            selectedLibrary != null &&
+                selectedLibrary.type != CollectionType.TvShows &&
+                selectedLibrary.type != CollectionType.Mixed
+        ) {
             _uiState.update { it.copy(episodeResults = emptyList(), isEpisodeSearching = false) }
             return
         }
@@ -671,6 +676,13 @@ constructor(
                     listOf(SearchFilter.ALL, SearchFilter.TV_SHOWS, SearchFilter.EPISODES)
                 CollectionType.BoxSets -> listOf(SearchFilter.ALL, SearchFilter.BOX_SETS)
                 CollectionType.Music -> listOf(SearchFilter.MUSIC)
+                CollectionType.Mixed ->
+                    listOf(
+                        SearchFilter.ALL,
+                        SearchFilter.MOVIES,
+                        SearchFilter.TV_SHOWS,
+                        SearchFilter.EPISODES,
+                    )
                 else -> SearchFilter.entries
             }
 

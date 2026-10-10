@@ -56,6 +56,7 @@ enum class Destination(
     companion object {
         const val LIBRARY_CONTENT_ROUTE = "library_content/{libraryId}/{libraryName}"
         const val STUDIO_CONTENT_ROUTE = "studio_content/{studioName}"
+        const val FOLDER_CONTENT_ROUTE = "folder_content/{folderId}/{folderName}"
         const val CUSTOM_SECTION_CONTENT_ROUTE = "custom_section_content/{sectionId}"
         const val ITEM_DETAIL_ROUTE = "item_detail/{itemId}?itemType={itemType}&seriesId={seriesId}"
         const val EPISODE_LIST_ROUTE = "episodes/{seasonId}/{seasonName}"
@@ -232,6 +233,10 @@ enum class Destination(
 
         fun createStudioContentRoute(studioName: String): String {
             return "studio_content/${studioName.replace("/", "%2F")}"
+        }
+
+        fun createFolderContentRoute(folderId: String, folderName: String): String {
+            return "folder_content/$folderId/${URLEncoder.encode(folderName, "UTF-8")}"
         }
 
         fun createCustomSectionContentRoute(sectionId: String): String {

@@ -431,6 +431,7 @@ constructor(
         nameStartsWith: String?,
         studioNames: List<String>,
         includeItemTypes: List<String>?,
+        recursive: Boolean,
         onSourceCreated: ((PagingSource<Int, AfinityItem>) -> Unit)?,
     ): Flow<PagingData<AfinityItem>> =
         Pager(
@@ -448,6 +449,7 @@ constructor(
                         nameStartsWith = nameStartsWith,
                         studioNames = studioNames,
                         includeItemTypes = includeItemTypes,
+                        recursive = recursive,
                     )
                     .also { source -> onSourceCreated?.invoke(source) }
             }

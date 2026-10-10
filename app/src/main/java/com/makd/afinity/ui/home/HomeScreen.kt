@@ -171,6 +171,7 @@ fun HomeScreen(
             uiState.libraries,
             uiState.separateMovieLibrarySections,
             uiState.separateTvLibrarySections,
+            uiState.separateMixedLibrarySections,
             uiState.hiddenRows,
         ) {
             buildLatestLibraryRows(
@@ -181,6 +182,9 @@ fun HomeScreen(
                 tvSections =
                     if (HomeRow.LATEST_TV in uiState.hiddenRows) emptyList()
                     else uiState.separateTvLibrarySections,
+                mixedSections =
+                    if (uiState.hiddenRows.containsAll(LATEST_ROWS)) emptyList()
+                    else uiState.separateMixedLibrarySections,
             )
         }
 
@@ -540,6 +544,7 @@ fun HomeScreen(
                                     when (row) {
                                         is LatestLibraryRow.Movies -> "movie_lib_${row.library.id}"
                                         is LatestLibraryRow.Shows -> "tv_lib_${row.library.id}"
+                                        is LatestLibraryRow.Mixed -> "mixed_lib_${row.library.id}"
                                     }
                                 },
                                 contentType = { row -> row::class },
@@ -561,6 +566,15 @@ fun HomeScreen(
                                                 items = row.items,
                                                 onItemClick = onItemClick,
                                                 widthSizeClass = widthSizeClass,
+                                            )
+
+                                        is LatestLibraryRow.Mixed ->
+                                            OptimizedLatestMoviesSection(
+                                                title = row.library.name,
+                                                items = row.items,
+                                                onItemClick = onItemClick,
+                                                widthSizeClass = widthSizeClass,
+                                                unavailableItemIds = uiState.unavailableDownloadIds,
                                             )
                                     }
                                 }
@@ -973,6 +987,8 @@ fun HomeScreen(
     }
 }
 
+private val LATEST_ROWS = setOf(HomeRow.LATEST_MOVIES, HomeRow.LATEST_TV)
+
 private sealed interface LatestLibraryRow {
     val library: AfinityCollection
 
@@ -981,16 +997,21 @@ private sealed interface LatestLibraryRow {
 
     data class Shows(override val library: AfinityCollection, val items: List<AfinityShow>) :
         LatestLibraryRow
+
+    data class Mixed(override val library: AfinityCollection, val items: List<AfinityItem>) :
+        LatestLibraryRow
 }
 
 private fun buildLatestLibraryRows(
     libraries: List<AfinityCollection>,
     movieSections: List<Pair<AfinityCollection, List<AfinityMovie>>>,
     tvSections: List<Pair<AfinityCollection, List<AfinityShow>>>,
+    mixedSections: List<Pair<AfinityCollection, List<AfinityItem>>>,
 ): List<LatestLibraryRow> {
     val serverOrder = libraries.withIndex().associate { (index, library) -> library.id to index }
     val rows: List<LatestLibraryRow> =
         movieSections.map { (library, items) -> LatestLibraryRow.Movies(library, items) } +
-            tvSections.map { (library, items) -> LatestLibraryRow.Shows(library, items) }
+            tvSections.map { (library, items) -> LatestLibraryRow.Shows(library, items) } +
+            mixedSections.map { (library, items) -> LatestLibraryRow.Mixed(library, items) }
     return rows.sortedBy { serverOrder[it.library.id] ?: Int.MAX_VALUE }
 }

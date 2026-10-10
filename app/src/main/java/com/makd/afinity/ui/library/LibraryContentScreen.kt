@@ -52,7 +52,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -71,7 +73,9 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.makd.afinity.R
 import com.makd.afinity.data.models.common.SortBy
 import com.makd.afinity.data.models.media.AfinityEpisode
+import com.makd.afinity.data.models.media.AfinityFolder
 import com.makd.afinity.data.models.media.AfinityItem
+import com.makd.afinity.data.models.media.AfinityVideo
 import com.makd.afinity.data.models.media.LibraryFilters
 import com.makd.afinity.navigation.Destination
 import com.makd.afinity.navigation.LocalPlayerOffset
@@ -84,6 +88,9 @@ import com.makd.afinity.ui.components.FullScreenError
 import com.makd.afinity.ui.components.FullScreenLoading
 import com.makd.afinity.ui.components.MediaItemGridCard
 import com.makd.afinity.ui.components.PaginatedMediaGrid
+import com.makd.afinity.ui.music.library.LibraryShortcutCard
+import com.makd.afinity.ui.player.PlayerLauncher
+import com.makd.afinity.ui.theme.CardDimensions
 
 @Composable
 fun LibraryContentScreen(
@@ -121,6 +128,31 @@ fun LibraryContentScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val playerOffset = LocalPlayerOffset.current
+    val context = LocalContext.current
+    val playVideo: (AfinityVideo) -> Unit = { video ->
+        viewModel.resolveVideoPlayback(video) { mediaSourceId, startPositionMs ->
+            PlayerLauncher.launch(
+                context = context,
+                itemId = video.id,
+                mediaSourceId = mediaSourceId,
+                startPositionMs = startPositionMs,
+            )
+        }
+    }
+    val libraryId = uiState.libraryId
+    val foldersTitle = stringResource(R.string.library_folders)
+    val browseHeader: (@Composable () -> Unit)? =
+        if (uiState.showFoldersShortcut && libraryId != null) {
+            {
+                LibraryBrowseHeader(
+                    onFoldersClick = {
+                        navController.navigate(
+                            Destination.createFolderContentRoute(libraryId.toString(), foldersTitle)
+                        )
+                    }
+                )
+            }
+        } else null
 
     LaunchedEffect(scrollToIndex) {
         if (scrollToIndex >= 0) {
@@ -278,15 +310,26 @@ fun LibraryContentScreen(
                                             top = 16.dp,
                                             bottom = 80.dp + playerOffset,
                                         ),
+                                    header = browseHeader,
                                 ) { item ->
                                     MediaItemGridCard(
                                         item = item,
                                         onClick = {
-                                            if (item is AfinityEpisode) {
-                                                viewModel.selectEpisode(item)
-                                            } else {
-                                                viewModel.onItemClick(item)
-                                                onItemClick(item)
+                                            when (item) {
+                                                is AfinityEpisode -> viewModel.selectEpisode(item)
+                                                is AfinityVideo -> playVideo(item)
+                                                is AfinityFolder ->
+                                                    navController.navigate(
+                                                        Destination.createFolderContentRoute(
+                                                            item.id.toString(),
+                                                            item.name,
+                                                        )
+                                                    )
+
+                                                else -> {
+                                                    viewModel.onItemClick(item)
+                                                    onItemClick(item)
+                                                }
                                             }
                                         },
                                     )
@@ -394,6 +437,28 @@ fun LibraryContentScreen(
             navController.navigate(Destination.createPersonRoute(personId))
         },
     )
+}
+
+@Composable
+private fun LibraryBrowseHeader(onFoldersClick: () -> Unit) {
+    val cardWidth = CardDimensions.shortcutCardWidth(LocalConfiguration.current.screenWidthDp)
+
+    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+        Text(
+            text = stringResource(R.string.music_action_browse),
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+        LibraryShortcutCard(
+            label = stringResource(R.string.library_folders),
+            iconRes = R.drawable.ic_folder,
+            gradientStart = Color(0xFFA4C4D6),
+            gradientEnd = Color(0xFF50787A),
+            cardWidth = cardWidth,
+            onClick = onFoldersClick,
+        )
+    }
 }
 
 @Composable

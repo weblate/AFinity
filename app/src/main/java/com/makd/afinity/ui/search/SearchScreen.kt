@@ -611,6 +611,11 @@ private fun SearchFilterRow(
                     }
                     CollectionType.BoxSets -> add(SearchFilter.BOX_SETS to R.string.section_boxset)
                     CollectionType.Music -> add(SearchFilter.MUSIC to R.string.section_music)
+                    CollectionType.Mixed -> {
+                        add(SearchFilter.MOVIES to R.string.section_movies)
+                        add(SearchFilter.TV_SHOWS to R.string.section_tv_shows)
+                        add(SearchFilter.EPISODES to R.string.section_episodes)
+                    }
                     else -> {
                         if (isJellyseerrAuthenticated) {
                             add(SearchFilter.REQUEST to R.string.filter_request)

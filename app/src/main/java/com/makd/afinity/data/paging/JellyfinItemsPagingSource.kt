@@ -25,6 +25,7 @@ class JellyfinItemsPagingSource(
     private val nameStartsWith: String? = null,
     private val studioNames: List<String> = emptyList(),
     private val includeItemTypes: List<String>? = null,
+    private val recursive: Boolean = true,
 ) : PagingSource<Int, AfinityItem>() {
 
     companion object {
@@ -60,7 +61,7 @@ class JellyfinItemsPagingSource(
                         startIndex = startIndex,
                         includeItemTypes = includeTypes,
                         nameStartsWith = nameStartsWith,
-                        recursive = true,
+                        recursive = recursive,
                         criteria = filters.toItemFilterCriteria(studioNames),
                         fields =
                             if (libraryType == CollectionType.Playlists) FieldSets.PLAYLIST_GRID

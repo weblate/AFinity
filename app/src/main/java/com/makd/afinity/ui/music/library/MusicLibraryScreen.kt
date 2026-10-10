@@ -879,7 +879,7 @@ private fun LibraryShortcutsRow(
 }
 
 @Composable
-private fun LibraryShortcutCard(
+internal fun LibraryShortcutCard(
     label: String,
     iconRes: Int,
     gradientStart: Color,

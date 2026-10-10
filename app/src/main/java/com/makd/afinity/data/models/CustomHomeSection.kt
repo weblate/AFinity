@@ -39,6 +39,7 @@ enum class CustomSectionItemType(
                         CollectionType.Movies -> listOf(MOVIE)
                         CollectionType.TvShows -> listOf(SERIES, SEASON, EPISODE)
                         CollectionType.BoxSets -> listOf(BOX_SET)
+                        CollectionType.Mixed -> entries.filterNot { it == BOX_SET }
                         else -> entries
                     }
                 else -> entries.filterNot { it == SEASON }

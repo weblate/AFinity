@@ -454,6 +454,7 @@
     <string name="library_empty_title">No items found</string>
     <string name="library_empty_message">This library appears to be empty or the content hasn\'t been scanned yet.</string>
     <string name="library_empty_letter_fmt">No content starting with \"%1$s\"</string>
+    <string name="library_folders">Folders</string>
 
     <string name="filter_all">All</string>
     <string name="filter_watchlist">Watchlist</string>

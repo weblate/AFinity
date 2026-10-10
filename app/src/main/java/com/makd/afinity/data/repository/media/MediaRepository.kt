@@ -319,6 +319,7 @@ interface MediaRepository {
         nameStartsWith: String? = null,
         studioNames: List<String> = emptyList(),
         includeItemTypes: List<String>? = null,
+        recursive: Boolean = true,
         onSourceCreated: ((PagingSource<Int, AfinityItem>) -> Unit)? = null,
     ): Flow<PagingData<AfinityItem>>
 

@@ -15,14 +15,10 @@ enum class CollectionType(val type: String) {
     companion object {
         val defaultValue = Unknown
 
-        val supported = listOf(Movies, TvShows, BoxSets, LiveTv, Music, Playlists)
+        val supported = listOf(Movies, TvShows, BoxSets, LiveTv, Music, Playlists, Mixed)
 
         fun fromString(string: String?): CollectionType {
-            if (
-                string == null
-            ) { // TODO jellyfin returns null as the collectiontype for mixed libraries. This is
-                // obviously wrong, but probably an upstream issue. Should be fixed whenever
-                // upstream fixes this
+            if (string == null) {
                 return Mixed
             }
 

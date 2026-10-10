@@ -611,6 +611,28 @@ fun MainNavigation(
                                 }
 
                                 composable(
+                                    route = Destination.FOLDER_CONTENT_ROUTE,
+                                    arguments =
+                                        listOf(
+                                            navArgument("folderId") { type = NavType.StringType },
+                                            navArgument("folderName") { type = NavType.StringType },
+                                        ),
+                                ) {
+                                    LibraryContentScreen(
+                                        onItemClick = { item ->
+                                            navController.navigateToItem(item)
+                                        },
+                                        onProfileClick = {
+                                            val route = Destination.createSettingsRoute()
+                                            navController.navigate(route)
+                                        },
+                                        navController = navController,
+                                        modifier = Modifier.fillMaxSize(),
+                                        widthSizeClass = widthSizeClass,
+                                    )
+                                }
+
+                                composable(
                                     route = Destination.ITEM_DETAIL_ROUTE,
                                     arguments =
                                         listOf(
@@ -1884,7 +1906,7 @@ private fun NavController.leaveMusicPlayerFor(
     val previous = previousBackStackEntry
     val alreadyBehind =
         previous?.destination?.route == pattern &&
-            previous?.arguments?.getString(argName) == argValue
+            previous.arguments?.getString(argName) == argValue
     if (alreadyBehind) {
         popBackStack()
     } else {

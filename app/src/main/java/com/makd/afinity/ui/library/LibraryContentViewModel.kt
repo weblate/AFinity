@@ -22,6 +22,7 @@ import com.makd.afinity.data.models.common.SortBy
 import com.makd.afinity.data.models.download.DownloadInfo
 import com.makd.afinity.data.models.media.AfinityEpisode
 import com.makd.afinity.data.models.media.AfinityItem
+import com.makd.afinity.data.models.media.AfinityVideo
 import com.makd.afinity.data.models.media.LibraryFilterOptions
 import com.makd.afinity.data.models.media.LibraryFilters
 import com.makd.afinity.data.models.media.toAfinityEpisode
@@ -38,6 +39,7 @@ import com.makd.afinity.ui.item.delegates.ItemUserDataDelegate
 import com.makd.afinity.util.ItemIds
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.net.URLDecoder
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -180,6 +182,11 @@ constructor(
     private val libraryName: String? = savedStateHandle["libraryName"]
     private val studioName: String? = savedStateHandle["studioName"]
     private val sectionId: String? = savedStateHandle["sectionId"]
+    private val folderId: String? = savedStateHandle["folderId"]
+    private val folderName: String? =
+        savedStateHandle.get<String>("folderName")?.let { URLDecoder.decode(it, "UTF-8") }
+    private val browseParentId: UUID? = (folderId ?: libraryId)?.let { UUID.fromString(it) }
+    private var isMixedLibrary = false
 
     private var customSection: CustomHomeSection? = null
     private var sectionParentId: UUID? = null
@@ -197,9 +204,10 @@ constructor(
         MutableStateFlow(
             LibraryContentUiState(
                 libraryId = libraryId?.let { UUID.fromString(it) },
-                libraryName = (libraryName ?: studioName ?: "Content").replace("%2F", "/"),
+                libraryName =
+                    folderName ?: (libraryName ?: studioName ?: "Content").replace("%2F", "/"),
                 isStudioMode = studioName != null,
-                filtersLocked = sectionId != null,
+                filtersLocked = sectionId != null || folderId != null,
             )
         )
     val uiState: StateFlow<LibraryContentUiState> = _uiState.asStateFlow()
@@ -357,10 +365,15 @@ constructor(
             return CollectionType.Mixed
         }
 
+        if (folderId != null) {
+            return CollectionType.Mixed
+        }
+
         return try {
             val libraries = mediaRepository.getLibraries()
             val library = libraries.find { it.id.toString() == libraryId }
             Timber.d("Library '$libraryName' has type: ${library?.type}")
+            isMixedLibrary = library?.type == CollectionType.Mixed
             library?.type ?: CollectionType.Mixed
         } catch (e: CancellationException) {
             throw e
@@ -383,18 +396,26 @@ constructor(
 
         val baseFlow =
             mediaRepository.getItemsPaging(
-                parentId = sectionParentId ?: libraryId?.let { UUID.fromString(it) },
+                parentId = sectionParentId ?: browseParentId,
                 libraryType = type,
                 sortBy = currentSortBy,
                 sortDescending = currentSortDescending,
                 filters = currentFilters,
                 nameStartsWith = null,
                 studioNames = sectionStudios.ifEmpty { listOfNotNull(studioName) },
-                includeItemTypes = sectionItemTypes,
+                includeItemTypes = browseItemTypes(),
+                recursive = folderId == null,
                 onSourceCreated = { source -> currentLibraryPagingSource = source },
             )
         _pagingData.value = applyUpdatesToPagingFlow(baseFlow)
     }
+
+    private fun browseItemTypes(): List<String>? =
+        when {
+            folderId != null -> FOLDER_ITEM_TYPES
+            isMixedLibrary -> MIXED_LIBRARY_ITEM_TYPES
+            else -> sectionItemTypes
+        }
 
     private fun sectionLibraryType(): CollectionType {
         val types = customSection?.itemTypes.orEmpty()
@@ -459,13 +480,15 @@ constructor(
                 if (section == null) {
                     currentSortBy = preferencesRepository.getDefaultSortBy()
                     currentSortDescending = preferencesRepository.getSortDescending()
-                    currentFilters = loadPersistedFilters()
+                    currentFilters =
+                        if (folderId != null) LibraryFilters() else loadPersistedFilters()
                 }
 
                 _uiState.value =
                     _uiState.value.copy(
                         libraryName = section?.title ?: _uiState.value.libraryName,
                         libraryType = type,
+                        showFoldersShortcut = isMixedLibrary,
                         currentSortBy = currentSortBy,
                         currentSortDescending = currentSortDescending,
                         currentFilters = currentFilters,
@@ -508,8 +531,9 @@ constructor(
                 val type = libraryType ?: determineLibraryType()
                 val options =
                     mediaRepository.getFilterOptions(
-                        parentId = libraryId?.let { UUID.fromString(it) },
+                        parentId = browseParentId,
                         libraryType = type,
+                        includeItemTypes = browseItemTypes().orEmpty(),
                     )
                 _uiState.value = _uiState.value.copy(filterOptions = options)
             } catch (e: CancellationException) {
@@ -564,6 +588,26 @@ constructor(
         // TODO: Navigate to item detail screen
     }
 
+    fun resolveVideoPlayback(video: AfinityVideo, onResolved: (String, Long) -> Unit) {
+        viewModelScope.launch {
+            val detailed =
+                try {
+                    mediaRepository.getItemById(video.id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to load video ${video.id}")
+                    null
+                } ?: video
+            val mediaSourceId = detailed.sources.firstOrNull()?.id
+            if (mediaSourceId == null) {
+                Timber.w("Video has no playable source: ${video.name}")
+                return@launch
+            }
+            onResolved(mediaSourceId, detailed.playbackPositionTicks / 10000)
+        }
+    }
+
     fun resetScrollIndex() {
         _scrollToIndex.value = -1
     }
@@ -591,14 +635,15 @@ constructor(
 
                 val baseFlow =
                     mediaRepository.getItemsPaging(
-                        parentId = sectionParentId ?: libraryId?.let { UUID.fromString(it) },
+                        parentId = sectionParentId ?: browseParentId,
                         libraryType = type,
                         sortBy = currentSortBy,
                         sortDescending = currentSortDescending,
                         filters = currentFilters,
                         nameStartsWith = letterFilter,
                         studioNames = sectionStudios.ifEmpty { listOfNotNull(studioName) },
-                        includeItemTypes = sectionItemTypes,
+                        includeItemTypes = browseItemTypes(),
+                        recursive = folderId == null,
                         onSourceCreated = { source -> currentLibraryPagingSource = source },
                     )
                 _pagingData.value = applyUpdatesToPagingFlow(baseFlow)
@@ -634,4 +679,9 @@ data class LibraryContentUiState(
     val isStudioMode: Boolean = false,
     val selectedLetter: String? = null,
     val filtersLocked: Boolean = false,
+    val showFoldersShortcut: Boolean = false,
 )
+
+private val MIXED_LIBRARY_ITEM_TYPES = listOf("MOVIE", "SERIES")
+
+private val FOLDER_ITEM_TYPES = listOf("FOLDER", "MOVIE", "SERIES", "VIDEO")

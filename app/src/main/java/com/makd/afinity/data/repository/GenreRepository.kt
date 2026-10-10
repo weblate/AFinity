@@ -90,7 +90,7 @@ constructor(
                 else -> return emptyList()
             }
         val names = sortedSetOf<String>()
-        for (library in libraries.filter { it.type == type }) {
+        for (library in libraries.filter { it.type == type || it.type == CollectionType.Mixed }) {
             val genres =
                 mediaRepository
                     .getGenresResult(parentId = library.id, includeItemTypes = itemTypes)

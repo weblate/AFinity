@@ -4,6 +4,7 @@ import com.makd.afinity.data.models.common.CollectionType
 import com.makd.afinity.data.models.extensions.toAfinityImages
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 
 data class AfinityCollection(
     override val id: UUID,
@@ -30,6 +31,10 @@ fun BaseItemDto.toAfinityCollection(baseUrl: String): AfinityCollection? {
     val type = CollectionType.fromString(collectionType?.serialName)
 
     if (type !in CollectionType.supported) {
+        return null
+    }
+
+    if (type == CollectionType.Mixed && this.type != BaseItemKind.COLLECTION_FOLDER) {
         return null
     }
 
