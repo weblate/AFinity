@@ -38,6 +38,7 @@ import com.makd.afinity.data.models.media.AfinitySeason
 import com.makd.afinity.data.models.media.AfinityShow
 import com.makd.afinity.data.models.media.AfinityStudio
 import com.makd.afinity.data.models.media.AfinityVideo
+import com.makd.afinity.data.models.media.ContinueWatchingOrder
 import com.makd.afinity.data.models.media.ItemFilterCriteria
 import com.makd.afinity.data.models.media.toAfinityEpisode
 import com.makd.afinity.data.models.music.AfinityAlbum
@@ -138,7 +139,9 @@ constructor(
                         "Data cleared detected (Session Switch/Clear), resetting HomeViewModel UI state"
                     )
                     secondaryLoadJob?.cancel()
-                    _uiState.value = HomeUiState()
+                    _uiState.update {
+                        HomeUiState(mergeContinueWatchingNextUp = it.mergeContinueWatchingNextUp)
+                    }
                 } else {
                     hasEverLoaded = true
                     _uiState.update { it.copy(isLoading = false) }
@@ -217,6 +220,33 @@ constructor(
             appDataRepository.getHomeSortByDateAddedFlow().distinctUntilChanged().drop(1).collect {
                 appDataRepository.reloadHomeData()
             }
+        }
+
+        viewModelScope.launch {
+            appDataRepository.getMergeContinueWatchingNextUpFlow().collect { merge ->
+                _uiState.update { it.copy(mergeContinueWatchingNextUp = merge) }
+            }
+        }
+
+        viewModelScope.launch {
+            mediaRepository.continueWatchingOrder.collect { order ->
+                _uiState.update { it.copy(continueWatchingOrder = order) }
+            }
+        }
+
+        viewModelScope.launch {
+            combine(
+                    appDataRepository.getMergeContinueWatchingNextUpFlow(),
+                    appDataRepository.getNextUpMaxDaysFlow(),
+                    ::Pair,
+                )
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    if (!offlineModeManager.isOffline.first()) {
+                        mediaRepository.invalidateNextUpCache()
+                    }
+                }
         }
 
         viewModelScope.launch {
@@ -1045,6 +1075,8 @@ data class HomeUiState(
     val offlineContinueWatching: List<AfinityItem> = emptyList(),
     val nextUp: List<AfinityEpisode> = emptyList(),
     val offlineNextUp: List<AfinityEpisode> = emptyList(),
+    val mergeContinueWatchingNextUp: Boolean = false,
+    val continueWatchingOrder: ContinueWatchingOrder = ContinueWatchingOrder(),
     val upcomingEpisodes: List<AfinityEpisode> = emptyList(),
     val latestMovies: List<AfinityMovie> = emptyList(),
     val latestTvSeries: List<AfinityShow> = emptyList(),

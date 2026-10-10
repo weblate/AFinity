@@ -1004,6 +1004,16 @@
     <string name="pref_sort_date_added_title">Sort by Date Added</string>
     <string name="pref_sort_date_added_summary">Show newest content first on home screen</string>
     <string name="pref_requires_latest_rows">Turn on Latest Movies or Latest TV to use this</string>
+    <string name="pref_merge_continue_next_up_title">Merge Continue Watching and Next Up</string>
+    <string name="pref_merge_continue_next_up_summary">Show both in one row, most recently watched first</string>
+    <string name="pref_next_up_max_days_title">Max Days in Next Up</string>
+    <string name="pref_next_up_max_days_hint">How long a show stays in Next Up after you last watched it. Enter 0 for no limit.</string>
+    <string name="pref_next_up_max_days_label">Days</string>
+    <plurals name="pref_next_up_max_days_fmt">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="pref_requires_next_up_row">Turn on Next Up to use this</string>
 
     <string name="settings_group_content_layout">Content Layout</string>
     <string name="pref_episode_layout_title">Episode Layout</string>

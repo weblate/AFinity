@@ -3,12 +3,16 @@ package com.makd.afinity.ui.settings.appearance
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -16,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -26,8 +31,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -37,6 +44,7 @@ import com.makd.afinity.data.models.common.CardSize
 import com.makd.afinity.data.models.common.DetailLayout
 import com.makd.afinity.data.models.common.EpisodeLayout
 import com.makd.afinity.navigation.LocalPlayerOffset
+import com.makd.afinity.ui.components.AfinityTextField
 import com.makd.afinity.ui.components.EndAlignedDropdownMenu
 import com.makd.afinity.ui.components.SettingsDivider
 import com.makd.afinity.ui.components.SettingsGroup
@@ -58,6 +66,10 @@ fun AppearanceOptionsScreen(
     val combineLibrarySections by viewModel.combineLibrarySections.collectAsStateWithLifecycle()
     val homeSortByDateAdded by viewModel.homeSortByDateAdded.collectAsStateWithLifecycle()
     val latestRowsVisible by viewModel.latestRowsVisible.collectAsStateWithLifecycle()
+    val nextUpRowVisible by viewModel.nextUpRowVisible.collectAsStateWithLifecycle()
+    val mergeContinueWatchingNextUp by
+        viewModel.mergeContinueWatchingNextUp.collectAsStateWithLifecycle()
+    val nextUpMaxDays by viewModel.nextUpMaxDays.collectAsStateWithLifecycle()
     val navigationDrawerEnabled by viewModel.navigationDrawerEnabled.collectAsStateWithLifecycle()
     val librariesInDrawer by viewModel.librariesInDrawer.collectAsStateWithLifecycle()
     val sideSheetEnabled by viewModel.sideSheetEnabled.collectAsStateWithLifecycle()
@@ -201,6 +213,26 @@ fun AppearanceOptionsScreen(
                         onCheckedChange = viewModel::toggleHomeSortByDateAdded,
                         enabled = latestRowsVisible,
                     )
+                    SettingsDivider()
+                    SettingsSwitchItem(
+                        icon = painterResource(id = R.drawable.ic_arrows_join_2),
+                        title = stringResource(R.string.pref_merge_continue_next_up_title),
+                        subtitle =
+                            if (nextUpRowVisible) {
+                                stringResource(R.string.pref_merge_continue_next_up_summary)
+                            } else {
+                                stringResource(R.string.pref_requires_next_up_row)
+                            },
+                        checked = mergeContinueWatchingNextUp,
+                        onCheckedChange = viewModel::toggleMergeContinueWatchingNextUp,
+                        enabled = nextUpRowVisible,
+                    )
+                    SettingsDivider()
+                    NextUpMaxDaysItem(
+                        days = nextUpMaxDays,
+                        enabled = nextUpRowVisible,
+                        onDaysChange = viewModel::setNextUpMaxDays,
+                    )
                 }
             }
 
@@ -291,6 +323,70 @@ private fun ThemeSelectorItem(currentThemeMode: String, onThemeModeChange: (Stri
             }
         }
     }
+}
+
+@Composable
+private fun NextUpMaxDaysItem(days: Int, enabled: Boolean, onDaysChange: (Int) -> Unit) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    SettingsItem(
+        icon = painterResource(id = R.drawable.ic_hourglass_empty),
+        title = stringResource(R.string.pref_next_up_max_days_title),
+        subtitle =
+            when {
+                !enabled -> stringResource(R.string.pref_requires_next_up_row)
+                days == 0 -> stringResource(R.string.label_unlimited)
+                else -> pluralStringResource(R.plurals.pref_next_up_max_days_fmt, days, days)
+            },
+        onClick = { showDialog = true },
+        enabled = enabled,
+    )
+
+    if (showDialog) {
+        NextUpMaxDaysDialog(
+            days = days,
+            onDismiss = { showDialog = false },
+            onConfirm = {
+                onDaysChange(it)
+                showDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun NextUpMaxDaysDialog(days: Int, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
+    var text by remember { mutableStateOf(days.toString()) }
+    val parsed = text.toIntOrNull()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.pref_next_up_max_days_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AfinityTextField(
+                    value = text,
+                    onValueChange = { input -> text = input.filter { it.isDigit() }.take(4) },
+                    label = stringResource(R.string.pref_next_up_max_days_label),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = stringResource(R.string.pref_next_up_max_days_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { parsed?.let(onConfirm) }, enabled = parsed != null) {
+                Text(text = stringResource(R.string.custom_sections_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(text = stringResource(R.string.action_cancel)) }
+        },
+    )
 }
 
 @Composable

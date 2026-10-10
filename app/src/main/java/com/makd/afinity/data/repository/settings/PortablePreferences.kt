@@ -55,6 +55,8 @@ internal object PortablePreferences {
             spec("show_ratings", PrefType.BOOLEAN, SettingsSection.APPEARANCE),
             spec("combine_library_sections", PrefType.BOOLEAN, SettingsSection.APPEARANCE),
             spec("home_sort_by_date_added", PrefType.BOOLEAN, SettingsSection.APPEARANCE),
+            spec("merge_continue_watching_next_up", PrefType.BOOLEAN, SettingsSection.APPEARANCE),
+            spec("next_up_max_days", PrefType.INT, SettingsSection.APPEARANCE),
             spec("auto_play", PrefType.BOOLEAN, SettingsSection.PLAYBACK),
             spec("use_exo_player", PrefType.BOOLEAN, SettingsSection.PLAYBACK),
             spec("skip_intro_mode", PrefType.STRING, SettingsSection.PLAYBACK),

@@ -137,8 +137,22 @@ fun HomeScreen(
     val scrollToTopScope = rememberCoroutineScope()
     val showScrollToTop by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 3 } }
     val continueWatchingScrollState = rememberLazyListState()
+    val nextUpMerged =
+        !uiState.isOffline &&
+            uiState.mergeContinueWatchingNextUp &&
+            HomeRow.NEXT_UP !in uiState.hiddenRows
     val continueWatchingItems =
-        if (uiState.isOffline) uiState.offlineContinueWatching else uiState.continueWatching
+        when {
+            uiState.isOffline -> uiState.offlineContinueWatching
+            nextUpMerged ->
+                remember(uiState.continueWatching, uiState.nextUp, uiState.continueWatchingOrder) {
+                    uiState.continueWatchingOrder.interleave(
+                        uiState.continueWatching,
+                        uiState.nextUp,
+                    )
+                }
+            else -> uiState.continueWatching
+        }
     LaunchedEffect(continueWatchingItems.firstOrNull()?.id) {
         if (continueWatchingItems.isNotEmpty()) {
             if (
@@ -488,6 +502,7 @@ fun HomeScreen(
 
                         if (
                             !uiState.isOffline &&
+                                !nextUpMerged &&
                                 uiState.nextUp.isNotEmpty() &&
                                 HomeRow.NEXT_UP !in uiState.hiddenRows
                         ) {

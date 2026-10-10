@@ -83,6 +83,9 @@ constructor(@param:AppPreferences private val dataStore: DataStore<Preferences>)
         val GRID_LAYOUT = booleanPreferencesKey("grid_layout")
         val COMBINE_LIBRARY_SECTIONS = booleanPreferencesKey("combine_library_sections")
         val HOME_SORT_BY_DATE_ADDED = booleanPreferencesKey("home_sort_by_date_added")
+        val MERGE_CONTINUE_WATCHING_NEXT_UP =
+            booleanPreferencesKey("merge_continue_watching_next_up")
+        val NEXT_UP_MAX_DAYS = intPreferencesKey("next_up_max_days")
         val NAVIGATION_DRAWER_ENABLED = booleanPreferencesKey("navigation_drawer_enabled")
         val SIDE_SHEET_ENABLED = booleanPreferencesKey("side_sheet_enabled")
         val LIBRARIES_IN_DRAWER = booleanPreferencesKey("libraries_in_drawer")
@@ -405,6 +408,36 @@ constructor(@param:AppPreferences private val dataStore: DataStore<Preferences>)
     override fun getHomeSortByDateAddedFlow(): Flow<Boolean> {
         return dataStore.data.map { preferences ->
             preferences[Keys.HOME_SORT_BY_DATE_ADDED] ?: true
+        }
+    }
+
+    override suspend fun setMergeContinueWatchingNextUp(merge: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.MERGE_CONTINUE_WATCHING_NEXT_UP] = merge }
+    }
+
+    override suspend fun getMergeContinueWatchingNextUp(): Boolean {
+        return dataStore.data.first()[Keys.MERGE_CONTINUE_WATCHING_NEXT_UP] ?: false
+    }
+
+    override fun getMergeContinueWatchingNextUpFlow(): Flow<Boolean> {
+        return dataStore.data.map { preferences ->
+            preferences[Keys.MERGE_CONTINUE_WATCHING_NEXT_UP] ?: false
+        }
+    }
+
+    override suspend fun setNextUpMaxDays(days: Int) {
+        dataStore.edit { preferences ->
+            preferences[Keys.NEXT_UP_MAX_DAYS] = days.coerceIn(0, 9999)
+        }
+    }
+
+    override suspend fun getNextUpMaxDays(): Int {
+        return (dataStore.data.first()[Keys.NEXT_UP_MAX_DAYS] ?: 0).coerceIn(0, 9999)
+    }
+
+    override fun getNextUpMaxDaysFlow(): Flow<Int> {
+        return dataStore.data.map { preferences ->
+            (preferences[Keys.NEXT_UP_MAX_DAYS] ?: 0).coerceIn(0, 9999)
         }
     }
 

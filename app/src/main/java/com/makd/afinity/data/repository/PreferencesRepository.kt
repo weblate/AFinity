@@ -294,6 +294,18 @@ interface PreferencesRepository {
 
     fun getHomeSortByDateAddedFlow(): Flow<Boolean>
 
+    suspend fun setMergeContinueWatchingNextUp(merge: Boolean)
+
+    suspend fun getMergeContinueWatchingNextUp(): Boolean
+
+    fun getMergeContinueWatchingNextUpFlow(): Flow<Boolean>
+
+    suspend fun setNextUpMaxDays(days: Int)
+
+    suspend fun getNextUpMaxDays(): Int
+
+    fun getNextUpMaxDaysFlow(): Flow<Int>
+
     suspend fun setDownloadOverWifiOnly(wifiOnly: Boolean)
 
     suspend fun getDownloadOverWifiOnly(): Boolean

@@ -15,6 +15,7 @@ import com.makd.afinity.data.models.media.AfinityPersonDetail
 import com.makd.afinity.data.models.media.AfinitySeason
 import com.makd.afinity.data.models.media.AfinityShow
 import com.makd.afinity.data.models.media.AfinityStudio
+import com.makd.afinity.data.models.media.ContinueWatchingOrder
 import com.makd.afinity.data.models.media.ItemFilterCriteria
 import com.makd.afinity.data.models.media.LibraryFilterOptions
 import com.makd.afinity.data.models.media.LibraryFilters
@@ -35,6 +36,7 @@ interface MediaRepository {
     val hasLiveTvLibrary: Flow<Boolean?>
     val continueWatching: Flow<List<AfinityItem>>
     val nextUp: Flow<List<AfinityEpisode>>
+    val continueWatchingOrder: Flow<ContinueWatchingOrder>
 
     suspend fun seedHasLiveTvLibrary()
 

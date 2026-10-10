@@ -324,6 +324,14 @@ constructor(
         return preferencesRepository.getHomeSortByDateAddedFlow()
     }
 
+    fun getMergeContinueWatchingNextUpFlow(): Flow<Boolean> {
+        return preferencesRepository.getMergeContinueWatchingNextUpFlow()
+    }
+
+    fun getNextUpMaxDaysFlow(): Flow<Int> {
+        return preferencesRepository.getNextUpMaxDaysFlow()
+    }
+
     val combinedGenres: StateFlow<List<GenreItem>> = genreRepository.combinedGenres
     val genreMovies: StateFlow<Map<String, List<AfinityMovie>>> = genreRepository.genreMovies
     val genreShows: StateFlow<Map<String, List<AfinityShow>>> = genreRepository.genreShows

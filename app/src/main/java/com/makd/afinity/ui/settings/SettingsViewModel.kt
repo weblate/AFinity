@@ -113,6 +113,33 @@ constructor(
                 initialValue = true,
             )
 
+    val nextUpRowVisible: StateFlow<Boolean> =
+        homeLayoutPreferencesRepository.hiddenRows
+            .map { hidden -> HomeRow.NEXT_UP !in hidden }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = true,
+            )
+
+    val mergeContinueWatchingNextUp: StateFlow<Boolean> =
+        preferencesRepository
+            .getMergeContinueWatchingNextUpFlow()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = false,
+            )
+
+    val nextUpMaxDays: StateFlow<Int> =
+        preferencesRepository
+            .getNextUpMaxDaysFlow()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = 0,
+            )
+
     val navigationDrawerEnabled: StateFlow<Boolean> =
         preferencesRepository
             .getNavigationDrawerEnabledFlow()
@@ -606,6 +633,14 @@ constructor(
 
     fun toggleHomeSortByDateAdded(sortByDateAdded: Boolean) {
         viewModelScope.launch { preferencesRepository.setHomeSortByDateAdded(sortByDateAdded) }
+    }
+
+    fun toggleMergeContinueWatchingNextUp(merge: Boolean) {
+        viewModelScope.launch { preferencesRepository.setMergeContinueWatchingNextUp(merge) }
+    }
+
+    fun setNextUpMaxDays(days: Int) {
+        viewModelScope.launch { preferencesRepository.setNextUpMaxDays(days) }
     }
 
     fun toggleNavigationDrawer(enabled: Boolean) {

@@ -29,6 +29,7 @@ import com.makd.afinity.data.models.media.AfinityPersonDetail
 import com.makd.afinity.data.models.media.AfinitySeason
 import com.makd.afinity.data.models.media.AfinityShow
 import com.makd.afinity.data.models.media.AfinityStudio
+import com.makd.afinity.data.models.media.ContinueWatchingOrder
 import com.makd.afinity.data.models.media.ItemFilterCriteria
 import com.makd.afinity.data.models.media.LibraryFilterOptions
 import com.makd.afinity.data.models.media.LibraryFilters
@@ -50,6 +51,7 @@ import com.makd.afinity.data.repository.SecurePreferencesRepository
 import com.makd.afinity.data.storage.StorageLocationProvider
 import com.makd.afinity.di.ApplicationScope
 import java.io.File
+import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -102,6 +104,17 @@ import timber.log.Timber
 private val RESUMABLE_ITEM_TYPES = listOf(BaseItemKind.MOVIE, BaseItemKind.EPISODE)
 
 private val CARD_IMAGE_TYPES = listOf(ImageType.PRIMARY, ImageType.BACKDROP, ImageType.THUMB)
+
+private const val PLAYED_EPISODES_PAGE_SIZE = 100
+
+private const val PLAYED_EPISODES_MAX_PAGES = 3
+
+private class PlayedEpisodesPage(
+    val seriesPlayedAt: Map<UUID, LocalDateTime>,
+    val cursor: PlayedEpisodesCursor?,
+)
+
+private class PlayedEpisodesCursor(val floor: LocalDateTime, val nextIndex: Int)
 
 @Singleton
 class JellyfinMediaRepository
@@ -157,6 +170,13 @@ constructor(
         cache: MutableStateFlow<List<AfinityItem>>,
         updatedItem: AfinityItem,
     ) {
+        if (
+            cache == _continueWatching &&
+                updatedItem.playbackPositionTicks > 0 &&
+                !updatedItem.played
+        ) {
+            _continueWatchingOrder.update { it.copy(resumedAt = it.resumedAt - updatedItem.id) }
+        }
         cache.update { currentList ->
             val newList = currentList.toMutableList()
             val existingIndex = newList.indexOfFirst { it.id == updatedItem.id }
@@ -261,13 +281,21 @@ constructor(
                     response.content.items.mapNotNull { baseItemDto ->
                         baseItemDto.toAfinityItem(getBaseUrl())
                     }
+                val resumedAt =
+                    response.content.items
+                        .mapNotNull { baseItemDto ->
+                            baseItemDto.userData?.lastPlayedDate?.let { baseItemDto.id to it }
+                        }
+                        .toMap()
 
                 if (currentSessionKey() != sessionKeyAtStart) {
                     Timber.d("Session changed during continue watching refresh — discarding")
                     return@withContext
                 }
+                _continueWatchingOrder.update { it.copy(resumedAt = resumedAt) }
                 _continueWatching.value = continueWatchingItems
                 Timber.d("Full refresh of continue watching cache completed")
+                extendSeriesPlayedDates()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -283,19 +311,37 @@ constructor(
                 val apiClient = sessionManager.getCurrentApiClient() ?: return@withContext
                 val userId = getCurrentUserId() ?: return@withContext
                 val showApi = ShowApi(apiClient)
-                val response =
-                    showApi.getNextUp(
-                        userId = userId,
-                        limit = 16,
-                        fields = FieldSets.CACHE_NEXT_UP,
-                        enableImages = true,
-                        enableUserData = true,
-                        enableResumable = false,
-                        enableRewatching = false,
-                        enableTotalRecordCount = false,
-                        imageTypeLimit = 1,
-                        enableImageTypes = CARD_IMAGE_TYPES,
-                    )
+                val mergeWithContinueWatching =
+                    preferencesRepository.getMergeContinueWatchingNextUp()
+                val maxDays = preferencesRepository.getNextUpMaxDays()
+                val (response, playedEpisodes) =
+                    coroutineScope {
+                        val nextUpDeferred = async {
+                            showApi.getNextUp(
+                                userId = userId,
+                                limit = 16,
+                                fields = FieldSets.CACHE_NEXT_UP,
+                                enableImages = true,
+                                enableUserData = true,
+                                nextUpDateCutoff =
+                                    maxDays
+                                        .takeIf { it > 0 }
+                                        ?.let { LocalDateTime.now().minusDays(it.toLong()) },
+                                enableResumable = false,
+                                enableRewatching = false,
+                                enableTotalRecordCount = false,
+                                imageTypeLimit = 1,
+                                enableImageTypes = CARD_IMAGE_TYPES,
+                            )
+                        }
+                        val playedEpisodesDeferred =
+                            if (mergeWithContinueWatching) {
+                                async { fetchPlayedEpisodesPage(apiClient, userId, 0) }
+                            } else {
+                                null
+                            }
+                        nextUpDeferred.await() to playedEpisodesDeferred?.await()
+                    }
 
                 val nextUpEpisodes =
                     response.content.items.mapNotNull { baseItemDto ->
@@ -306,12 +352,101 @@ constructor(
                     Timber.d("Session changed during next up refresh — discarding")
                     return@withContext
                 }
+                if (!mergeWithContinueWatching) {
+                    playedEpisodesCursor = null
+                    _continueWatchingOrder.update { it.copy(seriesPlayedAt = emptyMap()) }
+                } else if (playedEpisodes != null) {
+                    playedEpisodesCursor = playedEpisodes.cursor
+                    _continueWatchingOrder.update {
+                        it.copy(seriesPlayedAt = playedEpisodes.seriesPlayedAt)
+                    }
+                }
                 _nextUp.value = nextUpEpisodes
                 Timber.d("Full refresh of next up cache completed")
+                extendSeriesPlayedDates()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Timber.e(e, "Failed to refresh next up cache")
+            }
+        }
+    }
+
+    private suspend fun fetchPlayedEpisodesPage(
+        apiClient: ApiClient,
+        userId: UUID,
+        startIndex: Int,
+    ): PlayedEpisodesPage? =
+        try {
+            val episodes =
+                LibraryApi(apiClient)
+                    .getItems(
+                        userId = userId,
+                        includeItemTypes = listOf(BaseItemKind.EPISODE),
+                        filters = listOf(ItemFilter.IS_PLAYED),
+                        recursive = true,
+                        sortBy = listOf(ItemSortBy.DATE_PLAYED),
+                        sortOrder = listOf(SortOrder.DESCENDING),
+                        startIndex = startIndex,
+                        limit = PLAYED_EPISODES_PAGE_SIZE,
+                        fields = emptyList(),
+                        enableImages = false,
+                        enableUserData = true,
+                        enableTotalRecordCount = false,
+                    )
+                    .content
+                    .items
+
+            val seriesPlayedAt = mutableMapOf<UUID, LocalDateTime>()
+            var floor: LocalDateTime? = null
+            episodes.forEach { episode ->
+                val playedAt = episode.userData?.lastPlayedDate ?: return@forEach
+                floor = playedAt
+                episode.seriesId?.let { seriesPlayedAt.putIfAbsent(it, playedAt) }
+            }
+            val oldestPlayedAt = floor
+            PlayedEpisodesPage(
+                seriesPlayedAt = seriesPlayedAt,
+                cursor =
+                    if (episodes.size == PLAYED_EPISODES_PAGE_SIZE && oldestPlayedAt != null) {
+                        PlayedEpisodesCursor(
+                            floor = oldestPlayedAt,
+                            nextIndex = startIndex + PLAYED_EPISODES_PAGE_SIZE,
+                        )
+                    } else {
+                        null
+                    },
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "Failed to load recently played episodes")
+            null
+        }
+
+    private suspend fun extendSeriesPlayedDates() {
+        playedEpisodesMutex.withLock {
+            while (true) {
+                val cursor = playedEpisodesCursor ?: return
+                if (cursor.nextIndex >= PLAYED_EPISODES_PAGE_SIZE * PLAYED_EPISODES_MAX_PAGES) {
+                    return
+                }
+                val order = _continueWatchingOrder.value
+                val oldestResumedAt = order.resumedAt.values.minOrNull() ?: return
+                if (cursor.floor <= oldestResumedAt) return
+                if (_nextUp.value.all { it.seriesId in order.seriesPlayedAt }) return
+
+                val sessionKeyAtStart = currentSessionKey() ?: return
+                val apiClient = sessionManager.getCurrentApiClient() ?: return
+                val userId = getCurrentUserId() ?: return
+                val page = fetchPlayedEpisodesPage(apiClient, userId, cursor.nextIndex) ?: return
+                if (currentSessionKey() != sessionKeyAtStart || playedEpisodesCursor !== cursor) {
+                    return
+                }
+                playedEpisodesCursor = page.cursor
+                _continueWatchingOrder.update {
+                    it.copy(seriesPlayedAt = page.seriesPlayedAt + it.seriesPlayedAt)
+                }
             }
         }
     }
@@ -385,6 +520,8 @@ constructor(
         Timber.d("Clearing in-memory playback caches")
         _continueWatching.value = emptyList()
         _nextUp.value = emptyList()
+        playedEpisodesCursor = null
+        _continueWatchingOrder.value = ContinueWatchingOrder()
     }
 
     override fun removeItemFromCache(itemId: String) {
@@ -409,6 +546,13 @@ constructor(
 
     private val _nextUp = MutableStateFlow<List<AfinityEpisode>>(emptyList())
     override val nextUp: Flow<List<AfinityEpisode>> = _nextUp.asStateFlow()
+
+    private val _continueWatchingOrder = MutableStateFlow(ContinueWatchingOrder())
+    override val continueWatchingOrder: Flow<ContinueWatchingOrder> =
+        _continueWatchingOrder.asStateFlow()
+
+    private val playedEpisodesMutex = Mutex()
+    @Volatile private var playedEpisodesCursor: PlayedEpisodesCursor? = null
 
     private fun getCurrentUserId(): UUID? = sessionManager.currentSession.value?.userId
 
